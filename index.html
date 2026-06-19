@@ -14,10 +14,8 @@
     body{margin:0;padding:0;background:#f3f4f6;overscroll-behavior:none;}
     input,select,textarea,button{font-family:'Segoe UI',Arial,sans-serif;}
     input:not([type=date]):not([type=number]),textarea,select{text-transform:uppercase;}
-    input[type=number]::-webkit-inner-spin-button,
-    input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0;}
-    ::-webkit-scrollbar{width:4px;}
-    ::-webkit-scrollbar-thumb{background:#c8956c;border-radius:2px;}
+    input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0;}
+    ::-webkit-scrollbar{width:4px;}::-webkit-scrollbar-thumb{background:#c8956c;border-radius:2px;}
   </style>
 </head>
 <body>
@@ -32,98 +30,85 @@
 <script>
 /* ── PWA Icon + Manifest ── */
 (function(){
-  try {
-    const c = document.createElement('canvas'); c.width = c.height = 512;
-    const x = c.getContext('2d');
-    x.fillStyle = '#1c2b4a'; x.fillRect(0,0,512,512);
-    x.font = '300px serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
-    x.fillText('☕', 256, 270);
-    const icon = c.toDataURL('image/png');
-    const atl = document.createElement('link');
-    atl.rel = 'apple-touch-icon'; atl.href = icon;
-    document.head.appendChild(atl);
-    const mf = {
-      name:'Café Belo Campo', short_name:'CBC', display:'standalone',
-      start_url:'./', background_color:'#f3f4f6', theme_color:'#1c2b4a',
-      icons:[{src:icon,sizes:'512x512',type:'image/png',purpose:'any maskable'}]
-    };
-    document.getElementById('mflink').href =
-      URL.createObjectURL(new Blob([JSON.stringify(mf)],{type:'application/json'}));
-  } catch(e){}
+  try{
+    const c=document.createElement('canvas');c.width=c.height=512;
+    const x=c.getContext('2d');x.fillStyle='#1c2b4a';x.fillRect(0,0,512,512);
+    x.font='300px serif';x.textAlign='center';x.textBaseline='middle';x.fillText('☕',256,270);
+    const icon=c.toDataURL('image/png');
+    const atl=document.createElement('link');atl.rel='apple-touch-icon';atl.href=icon;document.head.appendChild(atl);
+    const mf={name:'Café Belo Campo',short_name:'CBC',display:'standalone',start_url:'./',background_color:'#f3f4f6',theme_color:'#1c2b4a',icons:[{src:icon,sizes:'512x512',type:'image/png',purpose:'any maskable'}]};
+    document.getElementById('mflink').href=URL.createObjectURL(new Blob([JSON.stringify(mf)],{type:'application/json'}));
+  }catch(e){}
 })();
 
-/* ── Service Worker (offline) ── */
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js')
-      .then(() => console.log('SW registrado — app disponível offline'))
-      .catch(err => console.warn('SW não registrado:', err));
-  });
-}
+/* ── Service Worker embutido (cache offline) ── */
+(function(){
+  if(!('serviceWorker' in navigator))return;
+  const code=`
+const C='cafe-v4';
+const A=[
+  'https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'
+];
+self.addEventListener('install',e=>{e.waitUntil(caches.open(C).then(c=>c.addAll(A)).catch(()=>{}));self.skipWaiting();});
+self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(k=>Promise.all(k.filter(x=>x!==C).map(x=>caches.delete(x)))));self.clients.claim();});
+self.addEventListener('fetch',e=>{e.respondWith(caches.match(e.request).then(r=>{if(r)return r;return fetch(e.request).then(resp=>{caches.open(C).then(c=>c.put(e.request,resp.clone()));return resp;}).catch(()=>r);}));});`;
+  try{
+    const url=URL.createObjectURL(new Blob([code],{type:'text/javascript'}));
+    navigator.serviceWorker.register(url).catch(()=>{});
+  }catch(e){}
+})();
 </script>
 
 <script type="text/babel">
-const { useState, useEffect, useRef } = React;
+const{useState,useEffect,useRef}=React;
 
 /* ── TEMA ── */
-const NAVY='#1c2b4a', NAVY2='#2f4470', GOLD='#c8956c';
+const NAVY='#1c2b4a',NAVY2='#2f4470',GOLD='#c8956c';
 
 /* ── EMPRESA ── */
-const CO = {
-  name:'CAFÉ BELO CAMPO LTDA',
-  address:'FAZENDA AGUA FRIA MALLITO II, ÁGUA FRIA II, BARRA DO CHOÇA – BA',
-  cep:'45120-000', phone:'(77) 99958-6661',
-  email:'contato@cafebelocampo.com.br',
-  cnpj:'34.198.610/0001-63', ie:'160.895.906',
-};
+const CO={name:'CAFÉ BELO CAMPO LTDA',address:'FAZENDA AGUA FRIA MALLITO II, ÁGUA FRIA II, BARRA DO CHOÇA – BA',cep:'45120-000',phone:'(77) 99958-6661',email:'contato@cafebelocampo.com.br',cnpj:'34.198.610/0001-63',ie:'160.895.906'};
 
 /* ── LISTAS ── */
-const PRODS = ['CAFE BELO CAMPO CASEIRO','CAFE BELO CAMPO BRANCO','CAFE BAIANINHO','CAFE BELO CAMPO 1KG','CAFE BELO CAMPO GRAO'];
-const UNITS = ['kg','un','saco','fardo','cx'];
-const PGTO  = ['DINHEIRO','PIX','CARTÃO','BOLETO','TRANSFERÊNCIA','A COMBINAR'];
-const PRAZO = ['À VISTA','7 DIAS','15 DIAS','30 DIAS','45 DIAS','60 DIAS','90 DIAS'];
-const FRETE = ['EMITENTE (EMPRESA)','DESTINATÁRIO (CLIENTE)','SEM FRETE'];
+const PRODS=['CAFE BELO CAMPO CASEIRO','CAFE BELO CAMPO BRANCO','CAFE BAIANINHO','CAFE BELO CAMPO 1KG','CAFE BELO CAMPO GRAO'];
+const UNITS=['kg','un','saco','fardo','cx'];
+const PGTO=['DINHEIRO','PIX','CARTÃO','BOLETO','TRANSFERÊNCIA','A COMBINAR'];
+const PRAZO=['À VISTA','7 DIAS','15 DIAS','30 DIAS','45 DIAS','60 DIAS','90 DIAS'];
+const FRETE=['EMITENTE (EMPRESA)','DESTINATÁRIO (CLIENTE)','SEM FRETE'];
 
 /* ── UTILS ── */
-const genId = () => Date.now().toString(36)+Math.random().toString(36).slice(2,7);
-const money = v => new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v||0);
-const fdate = d => d ? new Date(d+'T12:00:00').toLocaleDateString('pt-BR') : '—';
-const fdatetime = d => new Date(d).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'});
-const today = () => { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
-const up = v => (v||'').toUpperCase();
+const genId=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const money=v=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v||0);
+const fdate=d=>d?new Date(d+'T12:00:00').toLocaleDateString('pt-BR'):'—';
+const fdatetime=d=>new Date(d).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'});
+const today=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
+const up=v=>(v||'').toUpperCase();
 
 /* ── STORAGE ── */
-const db = {
-  get: k => { try { const v=localStorage.getItem(k); return v?JSON.parse(v):null; } catch { return null; } },
-  set: (k,v) => { try { localStorage.setItem(k,JSON.stringify(v)); } catch(e) { console.error(e); } }
+const db={
+  get:k=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):null;}catch{return null;}},
+  set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));}catch(e){console.error(e);}}
 };
 
 /* ── STATUS ── */
-const ST = {
+const ST={
   pendente:{l:'PENDENTE',bg:'#fef9c3',fg:'#854d0e',d:'#eab308'},
   pago:    {l:'PAGO',    bg:'#dcfce7',fg:'#166534',d:'#22c55e'},
-  nao_pago:{l:'NÃO PAGO',bg:'#fee2e2',fg:'#991b1b',d:'#ef4444'},
+  nao_pago:{l:'NÃO PAGO',bg:'#fee2e2',fg:'#991b1b',d:'#ef4444'}
 };
 
 /* ── CÁLCULOS ── */
-const calcItem = it => {
-  const q=parseFloat(it.qtd)||0, vu=parseFloat(it.vlUnit)||0, d=parseFloat(it.descPercent)||0;
-  const b=q*vu, desc=b*d/100;
-  return {bruto:b, desconto:desc, total:b-desc};
-};
-const calcTotals = (items,frete) => {
-  let sub=0, desc=0;
-  (items||[]).forEach(it => { const {bruto,desconto}=calcItem(it); sub+=bruto; desc+=desconto; });
-  const fr=parseFloat(frete)||0;
-  return {subtotal:sub, totalDesc:desc, frete:fr, total:sub-desc+fr};
-};
+const calcItem=it=>{const q=parseFloat(it.qtd)||0,vu=parseFloat(it.vlUnit)||0,d=parseFloat(it.descPercent)||0,b=q*vu,desc=b*d/100;return{bruto:b,desconto:desc,total:b-desc};};
+const calcTotals=(items,frete)=>{let sub=0,desc=0;(items||[]).forEach(it=>{const{bruto,desconto}=calcItem(it);sub+=bruto;desc+=desconto;});const fr=parseFloat(frete)||0;return{subtotal:sub,totalDesc:desc,frete:fr,total:sub-desc+fr};};
 
 /* ── PDF (jsPDF) ── */
-const buildPDF = (order, isReceipt=false) => {
-  const {jsPDF} = window.jspdf;
-  const doc = new jsPDF({unit:'mm',format:'a4'});
-  const c = order.clientSnapshot, T = calcTotals(order.items,order.frete);
-  const M=14, W=182, PW=210; let y=0;
+const buildPDF=(order,isReceipt=false)=>{
+  const{jsPDF}=window.jspdf;
+  const doc=new jsPDF({unit:'mm',format:'a4'});
+  const c=order.clientSnapshot,T=calcTotals(order.items,order.frete);
+  const M=14,W=182,PW=210;let y=0;
   const nv=[28,43,74],lb=[238,241,246],wh=[255,255,255],g0=[249,250,251],g1=[243,244,246],td=[31,41,55],tm=[100,116,139];
   const fr=(yy,h,col,x=M,w=W)=>{doc.setFillColor(...col);doc.rect(x,yy,w,h,'F');};
   const tx=(t,x,yy,sz=9,col=td,bold=false,al='left')=>{doc.setFontSize(sz);doc.setFont('helvetica',bold?'bold':'normal');doc.setTextColor(...col);doc.text(String(t||''),x,yy,{align:al});};
@@ -132,142 +117,75 @@ const buildPDF = (order, isReceipt=false) => {
   const secH=(title,yy)=>{fr(yy,6,nv);tx(title,M+2,yy+4.2,7.5,wh,true);return yy+6;};
   const ms=v=>money(v).replace('\u00a0',' ');
 
-  if (isReceipt) {
+  if(isReceipt){
     fr(0,0,nv,0,PW);
     tx('COMPROVANTE DE PAGAMENTO',105,9,14,wh,true,'center');
     tx(CO.name,105,16,8,wh,false,'center');
     tx(CO.phone+' | CNPJ: '+CO.cnpj,105,22,7,wh,false,'center');
     y=26;
-    fr(y,9,lb); tx('NOTA Nº '+order.orderNumber,M+2,y+6.5,13,nv,true); tx('PAGO EM: '+fdate(today()),M+W-2,y+6.5,9,nv,false,'right'); y+=9;
+    fr(y,9,lb);tx('NOTA Nº '+order.orderNumber,M+2,y+6.5,13,nv,true);tx('PAGO EM: '+fdate(today()),M+W-2,y+6.5,9,nv,false,'right');y+=9;
     doc.setDrawColor(...nv);doc.setLineWidth(0.8);doc.line(M,y+3,M+W,y+3);y+=8;
     const rr=(l,v)=>{tx(l,M+2,y+4,8,tm);tx(v||'—',M+52,y+4,9,td,true);hl(y+6);y+=6;};
-    rr('CLIENTE:',c?.name||''); rr('CNPJ / CPF:',c?.document||''); rr('CIDADE / UF:',(c?.cidade||'')+(c?.estado?' - '+c.estado:'')); y+=2;
-    rr('FORMA DE PAGAMENTO:',order.formaPagamento||''); rr('PRAZO:',order.prazo||''); y+=4;
+    rr('CLIENTE:',c?.name||'');rr('CNPJ / CPF:',c?.document||'');rr('CIDADE / UF:',(c?.cidade||'')+(c?.estado?' - '+c.estado:''));y+=2;
+    rr('FORMA DE PAGAMENTO:',order.formaPagamento||'');rr('PRAZO:',order.prazo||'');y+=4;
     y=secH('PRODUTOS PAGOS',y)+2;
     (order.items||[]).forEach((it,i)=>{const{total}=calcItem(it);fr(y,6,i%2?wh:g0);tx((i+1)+'. '+it.produto,M+2,y+4.2,8,td);tx(it.qtd+' '+it.un+' × '+ms(it.vlUnit),M+W*0.55,y+4.2,7.5,tm);tx(ms(total),M+W-2,y+4.2,8.5,nv,true,'right');y+=6;});
-    y+=2; fr(y,10,nv); tx('TOTAL PAGO:',M+2,y+7,10,wh,true); tx(ms(T.total),M+W-2,y+7,12,wh,true,'right'); y+=14;
-    y+=8; const sw=(W-8)/2;
+    y+=2;fr(y,10,nv);tx('TOTAL PAGO:',M+2,y+7,10,wh,true);tx(ms(T.total),M+W-2,y+7,12,wh,true,'right');y+=14;
+    y+=8;const sw=(W-8)/2;
     doc.setDrawColor(80,80,80);doc.setLineWidth(0.3);doc.line(M,y,M+sw,y);doc.line(M+sw+8,y,M+W,y);
     if(order.signature){try{doc.addImage(order.signature,'PNG',M+sw+8,y-13,sw,11);}catch(e){}}
     tx('ASSINATURA DO RESPONSÁVEL (EMPRESA)',M+sw/2,y+4,6.5,tm,false,'center');tx(CO.name+' – '+CO.cnpj,M+sw/2,y+8,5.5,[150,150,150],false,'center');
     tx('ASSINATURA / CARIMBO DO CLIENTE',M+sw+8+sw/2,y+4,6.5,tm,false,'center');tx(c?.name||'',M+sw+8+sw/2,y+8,5.5,[150,150,150],false,'center');
-    y+=16;
-    tx('Este comprovante confirma o recebimento integral do pagamento.',105,y,7,[130,130,130],false,'center');
+    y+=16;tx('Este comprovante confirma o recebimento integral do pagamento.',105,y,7,[130,130,130],false,'center');
     tx('Emitido em: '+fdatetime(new Date()),105,y+6,6.5,[160,160,160],false,'center');
-  } else {
+  }else{
     fr(0,0,nv,0,PW);
-    tx('CAFE BELO CAMPO LTDA',105,9,14,wh,true,'center');
-    tx(CO.address,105,16,7,wh,false,'center');
-    tx(CO.phone+' | '+CO.email,105,21,7,wh,false,'center');
-    tx('CNPJ: '+CO.cnpj+' | IE: '+CO.ie,105,26,7,wh,false,'center'); y=29;
-    fr(y,9,lb); tx('NOTA DE VENDA',M+2,y+6.5,12,nv,true); tx('Nº: '+order.orderNumber,M+W-2,y+6.5,11,nv,true,'right'); y+=9;
-    fr(y,6,g0);bdr(y,6);
-    tx('DATA DE EMISSÃO: '+fdate(order.dataEmissao),M+2,y+4.2,8.5,td);
-    tx('DATA DE ENTREGA: '+fdate(order.dataEntrega),M+W/2+2,y+4.2,8.5,td); y+=6;
-
+    tx('CAFE BELO CAMPO LTDA',105,9,14,wh,true,'center');tx(CO.address,105,16,7,wh,false,'center');
+    tx(CO.phone+' | '+CO.email,105,21,7,wh,false,'center');tx('CNPJ: '+CO.cnpj+' | IE: '+CO.ie,105,26,7,wh,false,'center');y=29;
+    fr(y,9,lb);tx('NOTA DE VENDA',M+2,y+6.5,12,nv,true);tx('Nº: '+order.orderNumber,M+W-2,y+6.5,11,nv,true,'right');y+=9;
+    fr(y,6,g0);bdr(y,6);tx('DATA DE EMISSÃO: '+fdate(order.dataEmissao),M+2,y+4.2,8.5,td);tx('DATA DE ENTREGA: '+fdate(order.dataEntrega),M+W/2+2,y+4.2,8.5,td);y+=6;
     y=secH('DADOS DO CLIENTE',y);
-    [['NOME / RAZÃO SOCIAL',c?.name,'APELIDO / FANTASIA',c?.apelido],
-     ['CNPJ / CPF',c?.document,'INSCRIÇÃO ESTADUAL',c?.inscricaoEstadual],
-     ['ENDEREÇO',c?.address,'CEP',c?.cep],
-     ['CIDADE',c?.cidade,'ESTADO / UF',c?.estado],
-     ['TELEFONE',c?.phone,'E-MAIL',c?.email]
-    ].forEach(([l1,v1,l2,v2])=>{
-      fr(y,6,g1,M,W/2);fr(y,6,wh,M+W/2,W/2);
-      tx(l1,M+1,y+2.8,6.5,nv,true);tx(v1||'',M+2,y+5.5,7.5,td);
+    [['NOME / RAZÃO SOCIAL',c?.name,'APELIDO / FANTASIA',c?.apelido],['CNPJ / CPF',c?.document,'INSCRIÇÃO ESTADUAL',c?.inscricaoEstadual],['ENDEREÇO',c?.address,'CEP',c?.cep],['CIDADE',c?.cidade,'ESTADO / UF',c?.estado],['TELEFONE',c?.phone,'E-MAIL',c?.email]].forEach(([l1,v1,l2,v2])=>{
+      fr(y,6,g1,M,W/2);fr(y,6,wh,M+W/2,W/2);tx(l1,M+1,y+2.8,6.5,nv,true);tx(v1||'',M+2,y+5.5,7.5,td);
       if(l2){tx(l2,M+W/2+1,y+2.8,6.5,nv,true);tx(v2||'',M+W/2+2,y+5.5,7.5,td);}
       doc.setDrawColor(209,213,219);doc.setLineWidth(0.1);doc.rect(M,y,W,6,'S');doc.line(M+W/2,y,M+W/2,y+6);y+=6;
     });
-
     y=secH('CONDIÇÕES COMERCIAIS',y);
-    [['FORMA DE PAGAMENTO',order.formaPagamento,'PRAZO',order.prazo,'TRANSPORTADORA',order.transportadora],
-     ['REPRESENTANTE',order.representante,'ROTA / REGIÃO',order.rotaRegiao,'FRETE POR CONTA',order.fretePorConta]
-    ].forEach(row=>{
-      const cw=W/3;
-      for(let i=0;i<3;i++){fr(y,9,i%2===0?g1:wh,M+i*cw,cw);tx(row[i*2]||'',M+i*cw+1,y+3,6,nv,true);tx(row[i*2+1]||'—',M+i*cw+1,y+7.5,7.5,td);doc.setDrawColor(209,213,219);doc.setLineWidth(0.1);doc.rect(M+i*cw,y,cw,9,'S');}
-      y+=9;
+    [['FORMA DE PAGAMENTO',order.formaPagamento,'PRAZO',order.prazo,'TRANSPORTADORA',order.transportadora],['REPRESENTANTE',order.representante,'ROTA / REGIÃO',order.rotaRegiao,'FRETE POR CONTA',order.fretePorConta]].forEach(row=>{
+      const cw=W/3;for(let i=0;i<3;i++){fr(y,9,i%2===0?g1:wh,M+i*cw,cw);tx(row[i*2]||'',M+i*cw+1,y+3,6,nv,true);tx(row[i*2+1]||'—',M+i*cw+1,y+7.5,7.5,td);doc.setDrawColor(209,213,219);doc.setLineWidth(0.1);doc.rect(M+i*cw,y,cw,9,'S');}y+=9;
     });
-
     y=secH('ITENS DO PEDIDO',y);
     const IC=[M,M+14,M+73,M+101,M+123,M+139,M+147,M+157,M+170];
-    fr(y,5.5,[221,227,238]);
-    ['#','PRODUTO','LOTE','VALIDADE','OBS.','UN','QTD','VL UNIT','VL TOTAL'].forEach((h,i)=>tx(h,IC[i]+0.5,y+4,6,nv,true));
-    y+=5.5;
-    (order.items||[]).forEach((it,idx)=>{
-      const{total}=calcItem(it);fr(y,6,idx%2===0?wh:g0);
-      const p=it.produto.slice(0,13)+(it.produto.length>13?'…':'');
-      [String(idx+1),p,it.lote||'',it.dataValidade||'',(it.observacoes||'').slice(0,5),it.un,String(it.qtd),ms(it.vlUnit),ms(total)]
-        .forEach((v,i)=>tx(v,IC[i]+0.5,y+4.2,7,td));
-      hl(y+6);y+=6;
-    });
+    fr(y,5.5,[221,227,238]);['#','PRODUTO','LOTE','VALIDADE','OBS.','UN','QTD','VL UNIT','VL TOTAL'].forEach((h,i)=>tx(h,IC[i]+0.5,y+4,6,nv,true));y+=5.5;
+    (order.items||[]).forEach((it,idx)=>{const{total}=calcItem(it);fr(y,6,idx%2===0?wh:g0);const p=it.produto.slice(0,13)+(it.produto.length>13?'…':'');[String(idx+1),p,it.lote||'',it.dataValidade||'',(it.observacoes||'').slice(0,5),it.un,String(it.qtd),ms(it.vlUnit),ms(total)].forEach((v,i)=>tx(v,IC[i]+0.5,y+4.2,7,td));hl(y+6);y+=6;});
     for(let i=0;i<Math.max(0,5-(order.items?.length||0));i++){fr(y,5,((order.items?.length||0)+i)%2===0?wh:g0);hl(y+5);y+=5;}
-
-    const totRow=(l,v,hi=false)=>{
-      const lw=W*0.65,rw=W*0.35;
-      if(hi){fr(y,10,nv,M,lw);fr(y,10,[38,63,104],M+lw,rw);}
-      else{fr(y,6,g1,M,lw);fr(y,6,wh,M+lw,rw);hl(y+6);}
-      tx(l,M+lw-1,y+(hi?7:4.2),hi?9:8,hi?wh:nv,true,'right');
-      tx(v,M+W-1,y+(hi?7:4.2),hi?10:9,hi?wh:nv,true,'right');
-      y+=hi?12:6;
-    };
-    totRow('SUBTOTAL (SEM DESCONTO):',ms(T.subtotal));
-    totRow('TOTAL DE DESCONTO:',ms(T.totalDesc));
-    totRow('FRETE:',ms(T.frete));
-    y+=1;totRow('VALOR TOTAL DA NOTA:',ms(T.total),true);
-
-    y+=2;y=secH('OBSERVAÇÕES / INFORMAÇÕES ADICIONAIS',y);
-    fr(y,16,wh);bdr(y,16);
-    if(order.notes){doc.setFontSize(8);doc.setFont('helvetica','normal');doc.setTextColor(...td);doc.text(doc.splitTextToSize(order.notes,W-4),M+2,y+5);}
-    y+=18;
-
+    const totRow=(l,v,hi=false)=>{const lw=W*0.65,rw=W*0.35;if(hi){fr(y,10,nv,M,lw);fr(y,10,[38,63,104],M+lw,rw);}else{fr(y,6,g1,M,lw);fr(y,6,wh,M+lw,rw);hl(y+6);}tx(l,M+lw-1,y+(hi?7:4.2),hi?9:8,hi?wh:nv,true,'right');tx(v,M+W-1,y+(hi?7:4.2),hi?10:9,hi?wh:nv,true,'right');y+=hi?12:6;};
+    totRow('SUBTOTAL (SEM DESCONTO):',ms(T.subtotal));totRow('TOTAL DE DESCONTO:',ms(T.totalDesc));totRow('FRETE:',ms(T.frete));y+=1;totRow('VALOR TOTAL DA NOTA:',ms(T.total),true);
+    y+=2;y=secH('OBSERVAÇÕES / INFORMAÇÕES ADICIONAIS',y);fr(y,16,wh);bdr(y,16);
+    if(order.notes){doc.setFontSize(8);doc.setFont('helvetica','normal');doc.setTextColor(...td);doc.text(doc.splitTextToSize(order.notes,W-4),M+2,y+5);}y+=18;
     y+=6;const sw=(W-8)/2;
-    doc.setDrawColor(80,80,80);doc.setLineWidth(0.3);
-    doc.line(M,y,M+sw,y);doc.line(M+sw+8,y,M+W,y);
+    doc.setDrawColor(80,80,80);doc.setLineWidth(0.3);doc.line(M,y,M+sw,y);doc.line(M+sw+8,y,M+W,y);
     if(order.signature){try{doc.addImage(order.signature,'PNG',M+sw+8,y-12,sw,10);}catch(e){}}
-    tx('ASSINATURA DO RESPONSÁVEL (EMPRESA)',M+sw/2,y+4,6.5,tm,false,'center');
-    tx(CO.name+' – '+CO.cnpj,M+sw/2,y+8,5.5,[150,150,150],false,'center');
-    tx('ASSINATURA / CARIMBO DO CLIENTE',M+sw+8+sw/2,y+4,6.5,tm,false,'center');
-    tx(c?.name||'',M+sw+8+sw/2,y+8,5.5,[150,150,150],false,'center');
-    y+=16;
-    doc.setDrawColor(200,200,200);doc.setLineWidth(0.1);doc.line(M,y,M+W,y);y+=4;
+    tx('ASSINATURA DO RESPONSÁVEL (EMPRESA)',M+sw/2,y+4,6.5,tm,false,'center');tx(CO.name+' – '+CO.cnpj,M+sw/2,y+8,5.5,[150,150,150],false,'center');
+    tx('ASSINATURA / CARIMBO DO CLIENTE',M+sw+8+sw/2,y+4,6.5,tm,false,'center');tx(c?.name||'',M+sw+8+sw/2,y+8,5.5,[150,150,150],false,'center');
+    y+=16;doc.setDrawColor(200,200,200);doc.setLineWidth(0.1);doc.line(M,y,M+W,y);y+=4;
     tx('ESTE DOCUMENTO NÃO POSSUI VALOR FISCAL. DOCUMENTO INTERNO DE CONTROLE DE VENDAS.',105,y,6.5,[150,150,150],false,'center');
     tx(CO.name+' | '+CO.phone+' | GERADO EM: '+fdatetime(new Date()),105,y+5,6,[170,170,170],false,'center');
   }
   return doc;
 };
 
-const shareOrDownload = async (order, isReceipt=false) => {
-  try {
-    const doc=buildPDF(order,isReceipt);
-    const blob=doc.output('blob');
-    const fname=isReceipt?`Comprovante_${order.orderNumber}.pdf`:`Nota_${order.orderNumber}.pdf`;
-    const file=new File([blob],fname,{type:'application/pdf'});
-    if(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){
-      await navigator.share({files:[file],title:fname});
-    } else {
-      const url=URL.createObjectURL(blob);const a=document.createElement('a');
-      a.href=url;a.download=fname;document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
-      if(!isReceipt)alert('PDF BAIXADO! ABRA O WHATSAPP E ANEXE O ARQUIVO.');
-    }
-  } catch(e){if(e.name!=='AbortError')alert('ERRO AO GERAR PDF: '+e.message);}
+const shareOrDownload=async(order,isReceipt=false)=>{
+  try{const doc=buildPDF(order,isReceipt);const blob=doc.output('blob');const fname=isReceipt?`Comprovante_${order.orderNumber}.pdf`:`Nota_${order.orderNumber}.pdf`;const file=new File([blob],fname,{type:'application/pdf'});if(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],title:fname});}else{const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=fname;document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);if(!isReceipt)alert('PDF BAIXADO! ABRA O WHATSAPP E ANEXE O ARQUIVO.');}}catch(e){if(e.name!=='AbortError')alert('ERRO AO GERAR PDF: '+e.message);}
 };
 
 /* ── GOOGLE DRIVE ── */
-const syncDrive = (data,clientId) => new Promise((resolve,reject)=>{
+const syncDrive=(data,clientId)=>new Promise((resolve,reject)=>{
   if(!window.google?.accounts?.oauth2){reject(new Error('GOOGLE IDENTITY SERVICES NÃO CARREGADO.'));return;}
-  window.google.accounts.oauth2.initTokenClient({
-    client_id:clientId, scope:'https://www.googleapis.com/auth/drive.file',
-    callback:async tok=>{
-      if(tok.error){reject(new Error(tok.error));return;}
-      try{
-        const blob=new Blob([JSON.stringify(data)],{type:'application/json'});
-        const meta=JSON.stringify({name:`cafe-backup-${today()}.json`,mimeType:'application/json'});
-        const form=new FormData();
-        form.append('metadata',new Blob([meta],{type:'application/json'}));form.append('file',blob);
-        const r=await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',{method:'POST',headers:{Authorization:`Bearer ${tok.access_token}`},body:form});
-        r.ok?resolve(await r.json()):reject(new Error('ERRO AO SALVAR NO DRIVE'));
-      }catch(e){reject(e);}
-    }
-  }).requestAccessToken();
+  window.google.accounts.oauth2.initTokenClient({client_id:clientId,scope:'https://www.googleapis.com/auth/drive.file',callback:async tok=>{
+    if(tok.error){reject(new Error(tok.error));return;}
+    try{const blob=new Blob([JSON.stringify(data)],{type:'application/json'});const meta=JSON.stringify({name:`cafe-backup-${today()}.json`,mimeType:'application/json'});const form=new FormData();form.append('metadata',new Blob([meta],{type:'application/json'}));form.append('file',blob);const r=await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',{method:'POST',headers:{Authorization:`Bearer ${tok.access_token}`},body:form});r.ok?resolve(await r.json()):reject(new Error('ERRO AO SALVAR NO DRIVE'));}catch(e){reject(e);}
+  }}).requestAccessToken();
 });
 
 /* ── UI ATOMS ── */
@@ -285,8 +203,7 @@ const Pad=({initial,onSave,onClear})=>{
   const confirm=()=>{if(!drawn){alert('POR FAVOR, ASSINE ANTES DE CONFIRMAR.');return;}onSave(ref.current.toDataURL());setConf(true);};
   return(<div style={{border:'2px dashed #d1d5db',borderRadius:12,padding:8,background:'#fafafa'}}>
     <p style={{textAlign:'center',fontSize:12,color:'#9ca3af',marginBottom:4}}>{conf?'✅ ASSINATURA CONFIRMADA — DESENHE PARA ALTERAR':'ASSINE ABAIXO COM O DEDO OU CANETA'}</p>
-    <canvas ref={ref} width={560} height={160} style={{width:'100%',background:'#fff',borderRadius:8,border:'1px solid #e5e7eb',display:'block',touchAction:'none'}}
-      onMouseDown={start} onMouseMove={move} onMouseUp={end} onMouseLeave={end} onTouchStart={start} onTouchMove={move} onTouchEnd={end}/>
+    <canvas ref={ref} width={560} height={160} style={{width:'100%',background:'#fff',borderRadius:8,border:'1px solid #e5e7eb',display:'block',touchAction:'none'}} onMouseDown={start} onMouseMove={move} onMouseUp={end} onMouseLeave={end} onTouchStart={start} onTouchMove={move} onTouchEnd={end}/>
     <div style={{display:'flex',justifyContent:'space-between',marginTop:6,alignItems:'center'}}>
       <button onClick={clear} style={{background:'none',border:'none',color:'#dc2626',fontSize:13,cursor:'pointer',textDecoration:'underline'}}>LIMPAR</button>
       {drawn&&!conf&&<button onClick={confirm} style={{background:'#16a34a',color:'#fff',border:'none',borderRadius:8,padding:'6px 16px',fontSize:13,cursor:'pointer',fontWeight:700}}>✓ CONFIRMAR</button>}
@@ -334,7 +251,7 @@ function ItemRow({item,idx,onChange,onRemove,canRemove}){
   </div>);
 }
 
-/* ════ APP ROOT ════ */
+/* ════ APP ════ */
 function App(){
   const[stack,setStack]=useState([{screen:'home'}]);
   const[clients,setClients]=useState([]);
@@ -348,7 +265,7 @@ function App(){
   const saveO=d=>{setOrders(d);db.set('orders',d);};
   const lo=orders.find(o=>o.id===cur.order?.id)||cur.order;
   const titles={home:'☕ CAFÉ BELO CAMPO',clients:'👥 CLIENTES',clientForm:cur.client?'✏️ EDITAR CLIENTE':'➕ NOVO CLIENTE',newOrder:cur.order?'✏️ EDITAR NOTA':'📋 NOVA NOTA DE VENDA',orderList:'📋 NOTAS DE VENDA',orderDetail:`NOTA Nº ${lo?.orderNumber||''}`,cityView:'🗺️ POR CIDADE',analytics:'📊 ANÁLISE',settings:'⚙️ CONFIGURAÇÕES'};
-  const renderScreen=()=>{switch(cur.screen){
+  const rs=()=>{switch(cur.screen){
     case'home':return<HomeScreen orders={orders} clients={clients} onNew={()=>push('newOrder')} onClients={()=>push('clients')} onOrders={()=>push('orderList')} onSettings={()=>push('settings')}/>;
     case'clients':return<ClientList clients={clients} onAdd={()=>push('clientForm',{client:null})} onEdit={c=>push('clientForm',{client:c})} onDelete={id=>saveC(clients.filter(c=>c.id!==id))}/>;
     case'clientForm':return<ClientForm client={cur.client} onSave={c=>{saveC(cur.client?clients.map(x=>x.id===c.id?c:x):[...clients,c]);pop();}} onCancel={pop}/>;
@@ -368,7 +285,7 @@ function App(){
         {stack.length>1&&<button onClick={pop} style={{background:'none',border:'none',color:'#fff',fontSize:22,cursor:'pointer',padding:'0 6px 0 0',lineHeight:1}}>←</button>}
         <span style={{fontWeight:700,fontSize:14,flex:1,letterSpacing:.3}}>{titles[cur.screen]||'☕'}</span>
       </div>
-      <div style={{flex:1,overflowY:'auto',paddingBottom:bn?72:20}}>{renderScreen()}</div>
+      <div style={{flex:1,overflowY:'auto',paddingBottom:bn?72:20}}>{rs()}</div>
       {bn&&<div style={{position:'fixed',bottom:0,left:'50%',transform:'translateX(-50%)',width:'100%',maxWidth:480,background:'#fff',borderTop:'1px solid #e5e7eb',display:'flex',zIndex:100,boxShadow:'0 -2px 8px rgba(0,0,0,.06)'}}>
         {[{s:'home',e:'🏠',l:'INÍCIO'},{s:'clients',e:'👥',l:'CLIENTES'},{s:'orderList',e:'📋',l:'NOTAS'},{s:'cityView',e:'🗺️',l:'CIDADES'},{s:'analytics',e:'📊',l:'ANÁLISE'}].map(({s,e,l})=>(
           <button key={s} onClick={()=>setStack([{screen:s}])} style={{flex:1,padding:'8px 0 6px',background:'none',border:'none',cursor:'pointer',color:cur.screen===s?NAVY:'#9ca3af',display:'flex',flexDirection:'column',alignItems:'center',gap:1}}>
@@ -434,24 +351,15 @@ function ClientList({clients,onAdd,onEdit,onDelete}){
         {cids.map(cid=><button key={cid} onClick={()=>setCf(cid)} style={{padding:'6px 14px',borderRadius:20,border:'none',background:cf===cid?NAVY:'#e5e7eb',color:cf===cid?'#fff':'#6b7280',fontWeight:cf===cid?700:400,cursor:'pointer',fontSize:12,whiteSpace:'nowrap'}}>{cid} ({clients.filter(c=>c.cidade===cid).length})</button>)}
       </div>
     </div>}
-    {list.length===0?(<div style={{textAlign:'center',padding:'48px 0',color:'#9ca3af'}}>
-      <div style={{fontSize:52}}>👥</div>
-      <p style={{margin:'10px 0 16px',textTransform:'uppercase'}}>{q||cf!=='TODAS'?'NENHUM CLIENTE ENCONTRADO':'NENHUM CLIENTE CADASTRADO'}</p>
-      {!q&&cf==='TODAS'&&<button onClick={onAdd} style={{background:NAVY,color:'#fff',border:'none',borderRadius:12,padding:'12px 24px',cursor:'pointer',fontWeight:700}}>CADASTRAR CLIENTE</button>}
-    </div>):list.map(c=>(
+    {list.length===0?(<div style={{textAlign:'center',padding:'48px 0',color:'#9ca3af'}}><div style={{fontSize:52}}>👥</div><p style={{margin:'10px 0 16px',textTransform:'uppercase'}}>{q||cf!=='TODAS'?'NENHUM CLIENTE ENCONTRADO':'NENHUM CLIENTE CADASTRADO'}</p>{!q&&cf==='TODAS'&&<button onClick={onAdd} style={{background:NAVY,color:'#fff',border:'none',borderRadius:12,padding:'12px 24px',cursor:'pointer',fontWeight:700}}>CADASTRAR CLIENTE</button>}</div>
+    ):list.map(c=>(
       <Card key={c.id}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
           <div style={{flex:1}}>
-            <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
-              <div style={{fontWeight:700,fontSize:14}}>{c.name}</div>
-              {c.cidade&&<span style={{background:'#eff6ff',color:'#1e40af',borderRadius:20,padding:'2px 10px',fontSize:11,fontWeight:700}}>📍 {c.cidade}</span>}
-            </div>
+            <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}><div style={{fontWeight:700,fontSize:14}}>{c.name}</div>{c.cidade&&<span style={{background:'#eff6ff',color:'#1e40af',borderRadius:20,padding:'2px 10px',fontSize:11,fontWeight:700}}>📍 {c.cidade}</span>}</div>
             {c.apelido&&<div style={{fontSize:12,color:'#6b7280',marginTop:2}}>{c.apelido}</div>}
             {c.document&&<div style={{fontSize:11,color:'#9ca3af'}}>{c.documentType?.toUpperCase()}: {c.document}{c.inscricaoEstadual?` · IE: ${c.inscricaoEstadual}`:''}</div>}
-            <div style={{display:'flex',gap:10,marginTop:4,flexWrap:'wrap'}}>
-              {c.phone&&<span style={{fontSize:11,color:'#6b7280'}}>📞 {c.phone}</span>}
-              {c.email&&<span style={{fontSize:11,color:'#6b7280'}}>✉️ {c.email}</span>}
-            </div>
+            <div style={{display:'flex',gap:10,marginTop:4,flexWrap:'wrap'}}>{c.phone&&<span style={{fontSize:11,color:'#6b7280'}}>📞 {c.phone}</span>}{c.email&&<span style={{fontSize:11,color:'#6b7280'}}>✉️ {c.email}</span>}</div>
             {c.address&&<div style={{fontSize:11,color:'#9ca3af',marginTop:4}}>🏠 {c.address}{c.cep?` · CEP ${c.cep}`:''}{c.estado?` · ${c.estado}`:''}</div>}
           </div>
           <div style={{display:'flex',gap:6,marginLeft:8}}>
@@ -471,21 +379,13 @@ function ClientForm({client,onSave,onCancel}){
   return(<div style={{padding:16}}>
     <FI label="Nome / Razão Social" req value={f.name} onChange={v=>sv('name',v)} placeholder="NOME COMPLETO OU RAZÃO SOCIAL"/>
     <FI label="Apelido / Fantasia" value={f.apelido} onChange={v=>sv('apelido',v)} placeholder="NOME FANTASIA (OPCIONAL)"/>
-    <div style={{marginBottom:12}}>
-      <label style={S_LBL}>TIPO DE DOCUMENTO</label>
-      <div style={{display:'flex',gap:8}}>
-        {['cpf','cnpj'].map(t=><button key={t} onClick={()=>sv('documentType',t)} style={{flex:1,padding:10,borderRadius:10,border:`2px solid ${f.documentType===t?NAVY:'#e5e7eb'}`,background:f.documentType===t?'#eef1f6':'#fff',color:f.documentType===t?NAVY:'#9ca3af',fontWeight:f.documentType===t?700:400,cursor:'pointer',textTransform:'uppercase',fontSize:13}}>{t.toUpperCase()}</button>)}
-      </div>
-    </div>
+    <div style={{marginBottom:12}}><label style={S_LBL}>TIPO DE DOCUMENTO</label><div style={{display:'flex',gap:8}}>{['cpf','cnpj'].map(t=><button key={t} onClick={()=>sv('documentType',t)} style={{flex:1,padding:10,borderRadius:10,border:`2px solid ${f.documentType===t?NAVY:'#e5e7eb'}`,background:f.documentType===t?'#eef1f6':'#fff',color:f.documentType===t?NAVY:'#9ca3af',fontWeight:f.documentType===t?700:400,cursor:'pointer',textTransform:'uppercase',fontSize:13}}>{t.toUpperCase()}</button>)}</div></div>
     <FI label={f.documentType.toUpperCase()} value={f.document} onChange={v=>sv('document',v)} placeholder={f.documentType==='cpf'?'000.000.000-00':'00.000.000/0000-00'}/>
     <FI label="Inscrição Estadual" value={f.inscricaoEstadual} onChange={v=>sv('inscricaoEstadual',v)} placeholder="OPCIONAL"/>
     <FI label="Telefone" value={f.phone} onChange={v=>sv('phone',v)} type="tel" placeholder="(00) 00000-0000"/>
     <FI label="Email" value={f.email} onChange={v=>sv('email',v)} type="email" placeholder="EMAIL@EXEMPLO.COM"/>
     <TA label="Endereço" value={f.address} onChange={v=>sv('address',v)} placeholder="RUA, NÚMERO, BAIRRO" rows={2}/>
-    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-      <FI label="CEP" value={f.cep} onChange={v=>sv('cep',v)} placeholder="00000-000"/>
-      <FI label="Estado / UF" value={f.estado} onChange={v=>sv('estado',v)} placeholder="EX: BA"/>
-    </div>
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}><FI label="CEP" value={f.cep} onChange={v=>sv('cep',v)} placeholder="00000-000"/><FI label="Estado / UF" value={f.estado} onChange={v=>sv('estado',v)} placeholder="EX: BA"/></div>
     <FI label="Cidade" value={f.cidade} onChange={v=>sv('cidade',v)} placeholder="EX: VITÓRIA DA CONQUISTA"/>
     <div style={{display:'flex',gap:10,marginTop:8}}>
       <button onClick={onCancel} style={{flex:1,padding:13,borderRadius:12,border:'1.5px solid #e5e7eb',background:'#fff',color:'#374151',fontWeight:700,cursor:'pointer',fontSize:14}}>CANCELAR</button>
@@ -493,41 +393,21 @@ function ClientForm({client,onSave,onCancel}){
     </div>
   </div>);
 }
-/* ══════════════════════════════════════════════════════
-   ✂️  FIM DA PARTE 1 — Cole a PARTE 2 logo abaixo
-══════════════════════════════════════════════════════ */
-
-/* ══════════════════════════════════════════════════════
-   ✂️  INÍCIO DA PARTE 2 — Cole após o fim da Parte 1
-══════════════════════════════════════════════════════ */
 
 /* ════ ORDER FORM ════ */
 function OrderForm({clients,orders,editOrder,onSave,onCancel}){
   const nextNum=()=>{if(!orders.length)return '0001';const n=orders.map(o=>parseInt(o.orderNumber)||0);return String(Math.max(...n)+1).padStart(4,'0');};
   const[f,setF]=useState({id:editOrder?.id||genId(),orderNumber:editOrder?.orderNumber||nextNum(),dataEmissao:editOrder?.dataEmissao||today(),dataEntrega:editOrder?.dataEntrega||today(),clientId:editOrder?.clientId||'',items:editOrder?.items?.length?editOrder.items.map(it=>({...it})):[newItem()],formaPagamento:editOrder?.formaPagamento||PGTO[0],prazo:editOrder?.prazo||PRAZO[0],transportadora:up(editOrder?.transportadora),representante:up(editOrder?.representante),rotaRegiao:up(editOrder?.rotaRegiao),fretePorConta:editOrder?.fretePorConta||FRETE[2],frete:editOrder?.frete??0,notes:up(editOrder?.notes),signature:editOrder?.signature||null,sigOk:!!editOrder?.signature,status:editOrder?.status||'pendente',createdAt:editOrder?.createdAt||new Date().toISOString()});
   const sv=(k,v)=>setF(p=>({...p,[k]:v}));
-  const client=clients.find(c=>c.id===f.clientId);
-  const T=calcTotals(f.items,f.frete);
+  const client=clients.find(c=>c.id===f.clientId),T=calcTotals(f.items,f.frete);
   const updItem=(id,k,v)=>setF(p=>({...p,items:p.items.map(it=>it.id===id?{...it,[k]:v}:it)}));
   const addItem=()=>setF(p=>({...p,items:[...p.items,newItem()]}));
   const rmItem=id=>setF(p=>({...p,items:p.items.filter(it=>it.id!==id)}));
-  const save=()=>{
-    if(!f.clientId){alert('SELECIONE UM CLIENTE.');return;}
-    if(T.subtotal<=0){alert('ADICIONE PELO MENOS UM PRODUTO COM QUANTIDADE E VALOR.');return;}
-    if(!f.sigOk){alert('A ASSINATURA DO CLIENTE É OBRIGATÓRIA.');return;}
-    onSave({...f,clientSnapshot:client});
-  };
+  const save=()=>{if(!f.clientId){alert('SELECIONE UM CLIENTE.');return;}if(T.subtotal<=0){alert('ADICIONE PELO MENOS UM PRODUTO COM QUANTIDADE E VALOR.');return;}if(!f.sigOk){alert('A ASSINATURA DO CLIENTE É OBRIGATÓRIA.');return;}onSave({...f,clientSnapshot:client});};
   return(<div style={{padding:16}}>
-    <div style={{background:NAVY,color:'#fff',borderRadius:12,padding:'12px 16px',marginBottom:16,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-      <span style={{opacity:.75,fontSize:12,letterSpacing:.5}}>Nº DA NOTA</span>
-      <span style={{fontWeight:700,fontSize:20}}>{f.orderNumber}</span>
-    </div>
-    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
-      <FI label="Data de Emissão" value={f.dataEmissao} onChange={v=>sv('dataEmissao',v)} type="date"/>
-      <FI label="Data de Entrega" value={f.dataEntrega} onChange={v=>sv('dataEntrega',v)} type="date"/>
-    </div>
-    <SEL label="Cliente" req value={f.clientId} onChange={v=>sv('clientId',v)}
-      opts={[{v:'',l:'SELECIONE O CLIENTE...'},...clients.map(c=>({v:c.id,l:c.cidade?`${c.name} — ${c.cidade}`:c.name}))]}/>
+    <div style={{background:NAVY,color:'#fff',borderRadius:12,padding:'12px 16px',marginBottom:16,display:'flex',justifyContent:'space-between',alignItems:'center'}}><span style={{opacity:.75,fontSize:12,letterSpacing:.5}}>Nº DA NOTA</span><span style={{fontWeight:700,fontSize:20}}>{f.orderNumber}</span></div>
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}><FI label="Data de Emissão" value={f.dataEmissao} onChange={v=>sv('dataEmissao',v)} type="date"/><FI label="Data de Entrega" value={f.dataEntrega} onChange={v=>sv('dataEntrega',v)} type="date"/></div>
+    <SEL label="Cliente" req value={f.clientId} onChange={v=>sv('clientId',v)} opts={[{v:'',l:'SELECIONE O CLIENTE...'},...clients.map(c=>({v:c.id,l:c.cidade?`${c.name} — ${c.cidade}`:c.name}))]}/>
     {client&&<div style={{background:'#eef1f6',borderRadius:10,padding:'10px 12px',marginTop:-8,marginBottom:12,fontSize:12,color:NAVY,lineHeight:1.8}}>
       {client.cidade&&<div><b>📍 CIDADE:</b> {client.cidade}{client.estado?` - ${client.estado}`:''}</div>}
       {client.apelido&&<div><b>FANTASIA:</b> {client.apelido}</div>}
@@ -557,9 +437,7 @@ function OrderForm({clients,orders,editOrder,onSave,onCancel}){
     <TA label="Observações / Informações Adicionais" value={f.notes} onChange={v=>sv('notes',v)} placeholder="INFORMAÇÕES ADICIONAIS SOBRE A ENTREGA, CONDIÇÕES, ETC."/>
     <div style={{marginBottom:14}}>
       <label style={{...S_LBL,marginBottom:6}}>STATUS DO PAGAMENTO <span style={{color:'#9ca3af',fontWeight:400}}>(CONTROLE INTERNO)</span></label>
-      <div style={{display:'flex',gap:8}}>
-        {Object.entries(ST).map(([k,v])=><button key={k} onClick={()=>sv('status',k)} style={{flex:1,padding:'9px 4px',borderRadius:10,border:`2px solid ${f.status===k?v.d:'#e5e7eb'}`,background:f.status===k?v.bg:'#fff',color:f.status===k?v.fg:'#9ca3af',fontWeight:f.status===k?700:400,cursor:'pointer',fontSize:11,letterSpacing:.2}}>{v.l}</button>)}
-      </div>
+      <div style={{display:'flex',gap:8}}>{Object.entries(ST).map(([k,v])=><button key={k} onClick={()=>sv('status',k)} style={{flex:1,padding:'9px 4px',borderRadius:10,border:`2px solid ${f.status===k?v.d:'#e5e7eb'}`,background:f.status===k?v.bg:'#fff',color:f.status===k?v.fg:'#9ca3af',fontWeight:f.status===k?700:400,cursor:'pointer',fontSize:11,letterSpacing:.2}}>{v.l}</button>)}</div>
     </div>
     <div style={{marginBottom:20}}>
       <label style={{...S_LBL,marginBottom:6}}>ASSINATURA / CARIMBO DO CLIENTE *{f.sigOk&&<span style={{color:'#16a34a',fontWeight:400,marginLeft:8}}>✅ CONFIRMADA</span>}</label>
@@ -622,19 +500,14 @@ function CityView({orders,onView}){
     return(<div style={{marginBottom:12,borderRadius:14,overflow:'hidden',boxShadow:'0 1px 4px rgba(0,0,0,.08)'}}>
       <button onClick={()=>setSel(open?null:cidade)} style={{width:'100%',background:NAVY,color:'#fff',border:'none',padding:'12px 16px',display:'flex',justifyContent:'space-between',alignItems:'center',cursor:'pointer'}}>
         <div style={{textAlign:'left'}}><div style={{fontWeight:700,fontSize:14}}>📍 {cidade}</div><div style={{fontSize:11,opacity:.8,marginTop:2}}>{lista.length} NOTA{lista.length!==1?'S':''} · {money(tv)}</div></div>
-        <div style={{display:'flex',alignItems:'center',gap:10}}>
-          <div style={{textAlign:'right'}}><div style={{fontSize:11,opacity:.75}}>RECEBIDO</div><div style={{fontWeight:700,fontSize:13}}>{money(pv)}</div></div>
-          <span style={{fontSize:18,opacity:.8}}>{open?'▲':'▼'}</span>
-        </div>
+        <div style={{display:'flex',alignItems:'center',gap:10}}><div style={{textAlign:'right'}}><div style={{fontSize:11,opacity:.75}}>RECEBIDO</div><div style={{fontWeight:700,fontSize:13}}>{money(pv)}</div></div><span style={{fontSize:18,opacity:.8}}>{open?'▲':'▼'}</span></div>
       </button>
-      {open&&<div style={{background:'#fff'}}>
-        {sorted.map(o=>{const t=calcTotals(o.items,o.frete).total;return(
-          <div key={o.id} onClick={()=>onView(o)} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 14px',borderBottom:'1px solid #f3f4f6',cursor:'pointer'}}>
-            <div><div style={{fontWeight:700,fontSize:13,color:NAVY}}>Nº {o.orderNumber}</div><div style={{fontSize:12,color:'#374151'}}>{o.clientSnapshot?.name}</div>{o.dataEntrega&&<div style={{fontSize:11,color:'#9ca3af'}}>📦 {fdate(o.dataEntrega)}</div>}<div style={{fontSize:11,color:'#9ca3af'}}>{o.items?.length||0} PRODUTO(S)</div></div>
-            <div style={{textAlign:'right'}}><div style={{fontWeight:700,fontSize:14,color:NAVY}}>{money(t)}</div><Badge s={o.status} style={{marginTop:4}}/></div>
-          </div>
-        );})}
-      </div>}
+      {open&&<div style={{background:'#fff'}}>{sorted.map(o=>{const t=calcTotals(o.items,o.frete).total;return(
+        <div key={o.id} onClick={()=>onView(o)} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 14px',borderBottom:'1px solid #f3f4f6',cursor:'pointer'}}>
+          <div><div style={{fontWeight:700,fontSize:13,color:NAVY}}>Nº {o.orderNumber}</div><div style={{fontSize:12,color:'#374151'}}>{o.clientSnapshot?.name}</div>{o.dataEntrega&&<div style={{fontSize:11,color:'#9ca3af'}}>📦 {fdate(o.dataEntrega)}</div>}<div style={{fontSize:11,color:'#9ca3af'}}>{o.items?.length||0} PRODUTO(S)</div></div>
+          <div style={{textAlign:'right'}}><div style={{fontWeight:700,fontSize:14,color:NAVY}}>{money(t)}</div><Badge s={o.status} style={{marginTop:4}}/></div>
+        </div>
+      );})}</div>}
     </div>);
   };
   if(!orders.length)return<div style={{textAlign:'center',padding:'60px 0',color:'#9ca3af'}}><div style={{fontSize:52}}>🗺️</div><p style={{textTransform:'uppercase',margin:'10px 0'}}>NENHUMA NOTA CADASTRADA</p></div>;
@@ -656,19 +529,14 @@ function AnalyticsScreen({orders}){
   const now=new Date();
   const fo=orders.filter(o=>{if(per==='todos')return true;const d=new Date(o.createdAt);if(per==='mes')return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();if(per==='trim')return d>=new Date(now.getFullYear(),now.getMonth()-2,1);return true;});
   const cidMap={};fo.forEach(o=>{const cid=o.clientSnapshot?.cidade||'SEM CIDADE',t=calcTotals(o.items,o.frete);if(!cidMap[cid])cidMap[cid]={total:0,pago:0,pendente:0,nao_pago:0,notas:0};cidMap[cid].total+=t.total;cidMap[cid][o.status]=(cidMap[cid][o.status]||0)+t.total;cidMap[cid].notas++;});
-  const cidList=Object.entries(cidMap).sort((a,b)=>b[1].total-a[1].total);
-  const maxCid=cidList[0]?.[1]?.total||1;
+  const cidList=Object.entries(cidMap).sort((a,b)=>b[1].total-a[1].total),maxCid=cidList[0]?.[1]?.total||1;
   const prodMap={};fo.forEach(o=>{const cid=o.clientSnapshot?.cidade||'SEM CIDADE';(o.items||[]).forEach(it=>{if(!prodMap[it.produto])prodMap[it.produto]={total:0,qtd:0,cidades:{}};const{total}=calcItem(it);prodMap[it.produto].total+=total;prodMap[it.produto].qtd+=parseFloat(it.qtd)||0;prodMap[it.produto].cidades[cid]=(prodMap[it.produto].cidades[cid]||0)+(parseFloat(it.qtd)||0);});});
   const prodList=Object.entries(prodMap).sort((a,b)=>b[1].total-a[1].total);
   const tv=fo.reduce((s,o)=>s+calcTotals(o.items,o.frete).total,0);
   const pv=fo.filter(o=>o.status==='pago').reduce((s,o)=>s+calcTotals(o.items,o.frete).total,0);
   const pendv=fo.filter(o=>o.status==='pendente').reduce((s,o)=>s+calcTotals(o.items,o.frete).total,0);
   return(<div style={{padding:16}}>
-    <div style={{display:'flex',gap:6,marginBottom:14}}>
-      {[['todos','TODO PERÍODO'],['mes','ESTE MÊS'],['trim','TRIMESTRE']].map(([k,l])=>(
-        <button key={k} onClick={()=>setPer(k)} style={{flex:1,padding:'8px 4px',borderRadius:10,border:'none',background:per===k?NAVY:'#e5e7eb',color:per===k?'#fff':'#6b7280',fontWeight:per===k?700:400,cursor:'pointer',fontSize:11}}>{l}</button>
-      ))}
-    </div>
+    <div style={{display:'flex',gap:6,marginBottom:14}}>{[['todos','TODO PERÍODO'],['mes','ESTE MÊS'],['trim','TRIMESTRE']].map(([k,l])=><button key={k} onClick={()=>setPer(k)} style={{flex:1,padding:'8px 4px',borderRadius:10,border:'none',background:per===k?NAVY:'#e5e7eb',color:per===k?'#fff':'#6b7280',fontWeight:per===k?700:400,cursor:'pointer',fontSize:11}}>{l}</button>)}</div>
     <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:14}}>
       {[{l:'TOTAL',v:money(tv),c:NAVY,bg:'#eef1f6'},{l:'RECEBIDO',v:money(pv),c:'#166534',bg:'#dcfce7'},{l:'A RECEBER',v:money(pendv),c:'#854d0e',bg:'#fef9c3'}].map((s,i)=>(
         <div key={i} style={{background:s.bg,borderRadius:12,padding:'10px 8px',textAlign:'center'}}><div style={{fontSize:10,color:s.c,fontWeight:700,letterSpacing:.2}}>{s.l}</div><div style={{fontWeight:700,fontSize:12,color:s.c,marginTop:3}}>{s.v}</div></div>
@@ -679,12 +547,7 @@ function AnalyticsScreen({orders}){
         <div key={cid} style={{marginBottom:14}}>
           <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}><span style={{fontSize:12,fontWeight:700,color:NAVY}}>📍 {cid}</span><span style={{fontSize:12,fontWeight:700,color:NAVY}}>{money(data.total)}</span></div>
           <div style={{height:12,background:'#e5e7eb',borderRadius:6,overflow:'hidden',marginBottom:4}}><div style={{height:'100%',width:`${Math.max(2,(data.total/maxCid)*100)}%`,background:NAVY,borderRadius:6,transition:'width .4s'}}/></div>
-          <div style={{display:'flex',gap:8,fontSize:11,flexWrap:'wrap'}}>
-            <span style={{color:'#166534'}}>✅ {money(data.pago||0)}</span>
-            <span style={{color:'#854d0e'}}>⏳ {money(data.pendente||0)}</span>
-            <span style={{color:'#991b1b'}}>❌ {money(data.nao_pago||0)}</span>
-            <span style={{color:'#9ca3af'}}>{data.notas} NOTA{data.notas!==1?'S':''}</span>
-          </div>
+          <div style={{display:'flex',gap:8,fontSize:11,flexWrap:'wrap'}}><span style={{color:'#166534'}}>✅ {money(data.pago||0)}</span><span style={{color:'#854d0e'}}>⏳ {money(data.pendente||0)}</span><span style={{color:'#991b1b'}}>❌ {money(data.nao_pago||0)}</span><span style={{color:'#9ca3af'}}>{data.notas} NOTA{data.notas!==1?'S':''}</span></div>
         </div>
       ))}
     </Card>
@@ -693,9 +556,7 @@ function AnalyticsScreen({orders}){
         <div key={prod} style={{marginBottom:12,paddingBottom:12,borderBottom:i<prodList.length-1?'1px solid #f3f4f6':'none'}}>
           <div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}><span style={{fontSize:12,fontWeight:700,color:NAVY,flex:1,marginRight:8}}>{prod}</span><span style={{fontSize:12,fontWeight:700,color:NAVY}}>{money(data.total)}</span></div>
           <div style={{fontSize:11,color:'#6b7280',marginBottom:4}}>QTD TOTAL: {data.qtd}</div>
-          {Object.entries(data.cidades).sort((a,b)=>b[1]-a[1]).map(([cid,qtd])=>(
-            <div key={cid} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#9ca3af'}}><span>📍 {cid}</span><span>{qtd} UNID.</span></div>
-          ))}
+          {Object.entries(data.cidades).sort((a,b)=>b[1]-a[1]).map(([cid,qtd])=><div key={cid} style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'#9ca3af'}}><span>📍 {cid}</span><span>{qtd} UNID.</span></div>)}
         </div>
       ))}
     </Card>
@@ -710,7 +571,7 @@ function SettingsScreen({orders,clients}){
   const saveCid=()=>{db.set('gdrive_cid',cid);alert('CLIENT ID SALVO!');};
   const sync=async()=>{if(!cid){alert('INSIRA O CLIENT ID DO GOOGLE CLOUD PRIMEIRO.');return;}setLoading(true);setStatus('CONECTANDO...');try{const data={clients,orders,exportedAt:new Date().toISOString(),version:'4.0'};const r=await syncDrive(data,cid);setStatus('✅ SALVO! ARQUIVO: '+(r.name||'backup'));}catch(e){setStatus('❌ ERRO: '+e.message);}setLoading(false);};
   const exportJSON=()=>{const d=JSON.stringify({clients,orders,exportedAt:new Date().toISOString()},null,2);const blob=new Blob([d],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`cafe-backup-${today()}.json`;document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);};
-  const importJSON=()=>{const inp=document.createElement('input');inp.type='file';inp.accept='.json';inp.onchange=e=>{const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=ev=>{try{const data=JSON.parse(ev.target.result);if(window.confirm(`IMPORTAR ${data.clients?.length||0} CLIENTES E ${data.orders?.length||0} NOTAS? OS DADOS ATUAIS SERÃO SUBSTITUÍDOS.`)){if(data.clients)db.set('clients',data.clients);if(data.orders)db.set('orders',data.orders);alert('IMPORTAÇÃO CONCLUÍDA! RECARREGANDO...');window.location.reload();}}catch(err){alert('ARQUIVO INVÁLIDO.');}};reader.readAsText(file);};inp.click();};
+  const importJSON=()=>{const inp=document.createElement('input');inp.type='file';inp.accept='.json';inp.onchange=e=>{const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=ev=>{try{const data=JSON.parse(ev.target.result);if(window.confirm(`IMPORTAR ${data.clients?.length||0} CLIENTES E ${data.orders?.length||0} NOTAS?`)){if(data.clients)db.set('clients',data.clients);if(data.orders)db.set('orders',data.orders);alert('IMPORTAÇÃO CONCLUÍDA! RECARREGANDO...');window.location.reload();}}catch(err){alert('ARQUIVO INVÁLIDO.');}};reader.readAsText(file);};inp.click();};
   return(<div style={{padding:16}}>
     <Sec title="Backup e Restauração">
       <p style={{fontSize:12,color:'#6b7280',marginBottom:12,textTransform:'uppercase',letterSpacing:.2}}>EXPORTE SEUS DADOS REGULARMENTE PARA NÃO PERDER INFORMAÇÕES.</p>
@@ -718,17 +579,14 @@ function SettingsScreen({orders,clients}){
       <button onClick={importJSON} style={{width:'100%',padding:12,borderRadius:10,background:'#f0fdf4',color:'#166534',border:'none',fontWeight:700,cursor:'pointer',fontSize:13,textTransform:'uppercase'}}>📤 IMPORTAR BACKUP (JSON)</button>
     </Sec>
     <Sec title="Google Drive (Backup em Nuvem)">
-      <p style={{fontSize:12,color:'#6b7280',marginBottom:10,lineHeight:1.6}}>PARA ATIVAR: ACESSE <span style={{color:NAVY,fontWeight:700}}>CONSOLE.CLOUD.GOOGLE.COM</span> → CRIAR PROJETO → ATIVAR DRIVE API → CREDENCIAIS → OAuth 2.0 → ADICIONAR SEU DOMÍNIO NETLIFY → COPIAR CLIENT ID.</p>
+      <p style={{fontSize:12,color:'#6b7280',marginBottom:10,lineHeight:1.6}}>PARA ATIVAR: ACESSE <span style={{color:NAVY,fontWeight:700}}>CONSOLE.CLOUD.GOOGLE.COM</span> → CRIAR PROJETO → ATIVAR DRIVE API → CREDENCIAIS → OAuth 2.0 → ADICIONAR SEU DOMÍNIO → COPIAR CLIENT ID.</p>
       <FI label="Google Client ID" value={cid} onChange={setCid} placeholder="SEU-ID.apps.googleusercontent.com"/>
       <button onClick={saveCid} style={{width:'100%',padding:10,borderRadius:10,background:'#eef1f6',color:NAVY,border:'none',fontWeight:700,cursor:'pointer',fontSize:13,marginBottom:8,textTransform:'uppercase'}}>💾 SALVAR CLIENT ID</button>
       <button onClick={sync} disabled={loading} style={{width:'100%',padding:12,borderRadius:10,background:NAVY,color:'#fff',border:'none',fontWeight:700,cursor:'pointer',fontSize:13,opacity:loading?.7:1,textTransform:'uppercase'}}>{loading?'SINCRONIZANDO...':'☁️ SINCRONIZAR COM GOOGLE DRIVE'}</button>
       {status&&<p style={{fontSize:12,color:'#374151',marginTop:8,textTransform:'uppercase'}}>{status}</p>}
     </Sec>
     <Sec title="Informações do Sistema">
-      <DR label="TOTAL DE CLIENTES" value={String(clients.length)}/>
-      <DR label="TOTAL DE NOTAS" value={String(orders.length)}/>
-      <DR label="VERSÃO" value="4.0"/>
-      <DR label="ARMAZENAMENTO" value="LOCAL (DISPOSITIVO)"/>
+      <DR label="TOTAL DE CLIENTES" value={String(clients.length)}/><DR label="TOTAL DE NOTAS" value={String(orders.length)}/><DR label="VERSÃO" value="4.0"/><DR label="ARMAZENAMENTO" value="LOCAL (DISPOSITIVO)"/>
     </Sec>
   </div>);
 }
@@ -736,30 +594,17 @@ function SettingsScreen({orders,clients}){
 /* ════ ORDER DETAIL ════ */
 function OrderDetail({order,onStatus,onDelete}){
   if(!order)return null;
-  const c=order.clientSnapshot,st=ST[order.status]||ST.pendente,T=calcTotals(order.items,order.frete);
+  const c=order.clientSnapshot,T=calcTotals(order.items,order.frete);
   const[pLoading,setPLoading]=useState(false);
   const marcarPago=async()=>{if(!window.confirm('MARCAR COMO PAGO E EMITIR COMPROVANTE?'))return;onStatus(order.id,'pago');setPLoading(true);try{await shareOrDownload({...order,status:'pago'},true);}catch(e){if(e.name!=='AbortError')console.error(e);}setPLoading(false);};
   const buildText=()=>[`NOTA DE VENDA Nº ${order.orderNumber}`,`EMISSÃO: ${fdate(order.dataEmissao)}  ·  ENTREGA: ${fdate(order.dataEntrega)}`,'','CLIENTE',`NOME: ${c?.name||'-'}`,c?.cidade?`CIDADE: ${c.cidade}${c.estado?' - '+c.estado:''}`:'',c?.document?`${c.documentType?.toUpperCase()}: ${c.document}`:'',c?.phone?`TELEFONE: ${c.phone}`:'','','ITENS',...(order.items||[]).map((it,i)=>{const{total}=calcItem(it);return `${i+1}. ${it.produto} — ${it.qtd} ${it.un} × ${money(it.vlUnit)} (${it.descPercent||0}% DESC.) = ${money(total)}`;}),``,`SUBTOTAL: ${money(T.subtotal)}`,T.totalDesc>0?`DESCONTO: -${money(T.totalDesc)}`:'',T.frete>0?`FRETE: ${money(T.frete)}`:'',`VALOR TOTAL: ${money(T.total)}`,`FORMA DE PAGAMENTO: ${order.formaPagamento}  ·  PRAZO: ${order.prazo}`,order.notes?`\nOBS: ${order.notes}`:''].filter(Boolean).join('\n');
   const wppText=()=>{const ph=(c?.phone||'').replace(/\D/g,'');window.open(`https://wa.me/${ph?'55'+ph:''}?text=${encodeURIComponent(buildText())}`,'_blank');};
   const emailShare=()=>window.open(`mailto:${c?.email||''}?subject=${encodeURIComponent(`NOTA DE VENDA Nº ${order.orderNumber} - ${c?.name||''}`)}&body=${encodeURIComponent(buildText())}`, '_blank');
   const copy=()=>navigator.clipboard.writeText(buildText()).then(()=>alert('TEXTO COPIADO!')).catch(()=>alert('NÃO FOI POSSÍVEL COPIAR.'));
-
   const openPrint=()=>{
     const w=window.open('','_blank');if(!w){alert('PERMITA POPUPS PARA IMPRIMIR.');return;}
     const iRows=(order.items||[]).map((it,i)=>{const{total}=calcItem(it);return `<tr><td>${i+1}</td><td style="text-align:left">${it.produto}</td><td>${it.lote||'—'}</td><td>${it.dataValidade||'—'}</td><td style="text-align:left">${it.observacoes||''}</td><td>${it.un}</td><td>${it.qtd}</td><td>${money(it.vlUnit)}</td><td>${it.descPercent||0}%</td><td>${money(total)}</td></tr>`;}).join('');
-    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Nota ${order.orderNumber}</title>
-<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;color:#1f2937;font-size:11px;max-width:760px;margin:0 auto;padding:20px}
-.hdr{background:${NAVY};color:#fff;text-align:center;padding:16px;border-radius:6px 6px 0 0}.hdr h1{font-size:18px;margin-bottom:4px}.hdr .s{font-size:10px;opacity:.85}
-.tb{display:flex;justify-content:space-between;align-items:center;background:#eef1f6;border:1px solid #d1d5db;padding:10px 16px;font-weight:700}.tb .b{font-size:15px;color:${NAVY}}
-table.m{width:100%;border-collapse:collapse;font-size:11px}table.m td{border:1px solid #d1d5db;padding:6px 10px}table.m td.l{background:#f3f4f6;font-weight:700;width:140px}
-.sh{background:${NAVY};color:#fff;padding:6px 12px;font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.5px}
-table.it{width:100%;border-collapse:collapse;font-size:10px}table.it th{background:#dde3ee;border:1px solid #c7cede;padding:5px;font-size:9px;text-transform:uppercase}table.it td{border:1px solid #d1d5db;padding:5px;text-align:center}
-.tot table{width:100%;border-collapse:collapse;font-size:11px}.tot td{border:1px solid #d1d5db;padding:7px 12px}.tot td.l{text-align:right;font-weight:700;background:#f3f4f6}.tot tr.f td{background:${NAVY};color:#fff;font-weight:700;font-size:14px}
-.ob{border:1px solid #d1d5db;min-height:50px;padding:8px;font-size:11px}
-.sg{display:flex;justify-content:space-between;margin-top:36px;padding:0 20px}.sg div{width:45%;text-align:center;border-top:1px solid #333;padding-top:6px;font-size:10px}
-.ft{margin-top:18px;text-align:center;font-size:9px;color:#6b7280;border-top:1px solid #eee;padding-top:8px}
-.btns{display:flex;gap:10px;margin-top:14px}@media print{.btns{display:none!important}}</style>
-</head><body>
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Nota ${order.orderNumber}</title><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;color:#1f2937;font-size:11px;max-width:760px;margin:0 auto;padding:20px}.hdr{background:${NAVY};color:#fff;text-align:center;padding:16px;border-radius:6px 6px 0 0}.hdr h1{font-size:18px;margin-bottom:4px}.hdr .s{font-size:10px;opacity:.85}.tb{display:flex;justify-content:space-between;align-items:center;background:#eef1f6;border:1px solid #d1d5db;padding:10px 16px;font-weight:700}.tb .b{font-size:15px;color:${NAVY}}table.m{width:100%;border-collapse:collapse;font-size:11px}table.m td{border:1px solid #d1d5db;padding:6px 10px}table.m td.l{background:#f3f4f6;font-weight:700;width:140px}.sh{background:${NAVY};color:#fff;padding:6px 12px;font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.5px}table.it{width:100%;border-collapse:collapse;font-size:10px}table.it th{background:#dde3ee;border:1px solid #c7cede;padding:5px;font-size:9px;text-transform:uppercase}table.it td{border:1px solid #d1d5db;padding:5px;text-align:center}.tot table{width:100%;border-collapse:collapse;font-size:11px}.tot td{border:1px solid #d1d5db;padding:7px 12px}.tot td.l{text-align:right;font-weight:700;background:#f3f4f6}.tot tr.f td{background:${NAVY};color:#fff;font-weight:700;font-size:14px}.ob{border:1px solid #d1d5db;min-height:50px;padding:8px;font-size:11px}.sg{display:flex;justify-content:space-between;margin-top:36px;padding:0 20px}.sg div{width:45%;text-align:center;border-top:1px solid #333;padding-top:6px;font-size:10px}.ft{margin-top:18px;text-align:center;font-size:9px;color:#6b7280;border-top:1px solid #eee;padding-top:8px}.btns{display:flex;gap:10px;margin-top:14px}@media print{.btns{display:none!important}}</style></head><body>
 <div class="hdr"><h1>CAFE BELO CAMPO LTDA</h1><div class="s">${CO.address} | ${CO.phone} | ${CO.email}</div><div class="s">CNPJ: ${CO.cnpj} | IE: ${CO.ie}</div></div>
 <div class="tb"><span class="b">NOTA DE VENDA</span><span>Nº DA NOTA: ${order.orderNumber}</span></div>
 <table class="m"><tr><td class="l">DATA DE EMISSÃO</td><td>${fdate(order.dataEmissao)}</td><td class="l">DATA DE ENTREGA</td><td>${fdate(order.dataEntrega)}</td></tr></table>
@@ -774,10 +619,7 @@ table.it{width:100%;border-collapse:collapse;font-size:10px}table.it th{backgrou
 <div class="ob">${order.notes||''}</div>
 <div class="sg"><div>${order.signature?`<img src="${order.signature}" style="max-height:48px;display:block;margin:0 auto 4px"/>`:''}ASSINATURA DO RESPONSÁVEL (EMPRESA)<br/><small>${CO.name}</small></div><div>ASSINATURA / CARIMBO DO CLIENTE<br/><small>${c?.name||''}</small></div></div>
 <div class="ft">ESTE DOCUMENTO NÃO POSSUI VALOR FISCAL. DOCUMENTO INTERNO DE CONTROLE DE VENDAS. ${CO.name} | ${CO.phone}<br/>GERADO EM: ${fdatetime(new Date())}</div>
-<div class="btns">
-  <button onclick="window.print()" style="flex:2;padding:14px;background:${NAVY};color:#fff;border:none;border-radius:8px;font-size:15px;cursor:pointer;font-weight:700">🖨️ IMPRIMIR / SALVAR PDF</button>
-  <button onclick="window.close()" style="flex:1;padding:14px;background:#fff;color:${NAVY};border:2px solid ${NAVY};border-radius:8px;font-size:15px;cursor:pointer;font-weight:700">🏠 VOLTAR</button>
-</div>
+<div class="btns"><button onclick="window.print()" style="flex:2;padding:14px;background:${NAVY};color:#fff;border:none;border-radius:8px;font-size:15px;cursor:pointer;font-weight:700">🖨️ IMPRIMIR / SALVAR PDF</button><button onclick="window.close()" style="flex:1;padding:14px;background:#fff;color:${NAVY};border:2px solid ${NAVY};border-radius:8px;font-size:15px;cursor:pointer;font-weight:700">🏠 VOLTAR</button></div>
 </body></html>`);
     w.document.close();
   };
@@ -785,76 +627,42 @@ table.it{width:100%;border-collapse:collapse;font-size:10px}table.it th{backgrou
   return(<div style={{padding:16}}>
     <div style={{background:`linear-gradient(135deg,${NAVY},${NAVY2})`,color:'#fff',borderRadius:16,padding:18,marginBottom:14}}>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
-        <div>
-          <div style={{opacity:.75,fontSize:11,letterSpacing:.5}}>NOTA DE VENDA</div>
-          <div style={{fontWeight:700,fontSize:26}}>Nº {order.orderNumber}</div>
-          <div style={{opacity:.75,fontSize:11,marginTop:4}}>EMISSÃO: {fdate(order.dataEmissao)} · ENTREGA: {fdate(order.dataEntrega)}</div>
-          {c?.cidade&&<div style={{marginTop:6,background:'rgba(255,255,255,.15)',borderRadius:20,padding:'3px 12px',fontSize:11,display:'inline-block'}}>📍 {c.cidade}</div>}
-        </div>
+        <div><div style={{opacity:.75,fontSize:11,letterSpacing:.5}}>NOTA DE VENDA</div><div style={{fontWeight:700,fontSize:26}}>Nº {order.orderNumber}</div><div style={{opacity:.75,fontSize:11,marginTop:4}}>EMISSÃO: {fdate(order.dataEmissao)} · ENTREGA: {fdate(order.dataEntrega)}</div>{c?.cidade&&<div style={{marginTop:6,background:'rgba(255,255,255,.15)',borderRadius:20,padding:'3px 12px',fontSize:11,display:'inline-block'}}>📍 {c.cidade}</div>}</div>
         <div style={{textAlign:'right'}}><div style={{fontWeight:700,fontSize:26}}>{money(T.total)}</div><Badge s={order.status} style={{marginTop:6}}/></div>
       </div>
     </div>
 
-    {order.status!=='pago'&&<button onClick={marcarPago} disabled={pLoading} style={{width:'100%',padding:14,borderRadius:12,border:'none',background:'#16a34a',color:'#fff',fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:12,display:'flex',alignItems:'center',justifyContent:'center',gap:8,textTransform:'uppercase',letterSpacing:.5,opacity:pLoading?.7:1}}>
-      {pLoading?'GERANDO COMPROVANTE...':'✅  MARCAR COMO PAGO + EMITIR COMPROVANTE'}
-    </button>}
-    {order.status==='pago'&&<button onClick={()=>shareOrDownload(order,true)} style={{width:'100%',padding:12,borderRadius:12,border:`2px solid #16a34a`,background:'#dcfce7',color:'#166634',fontWeight:700,fontSize:14,cursor:'pointer',marginBottom:12,textTransform:'uppercase',letterSpacing:.4}}>
-      🧾 EMITIR COMPROVANTE DE PAGAMENTO
-    </button>}
+    {order.status!=='pago'&&<button onClick={marcarPago} disabled={pLoading} style={{width:'100%',padding:14,borderRadius:12,border:'none',background:'#16a34a',color:'#fff',fontWeight:700,fontSize:15,cursor:'pointer',marginBottom:12,display:'flex',alignItems:'center',justifyContent:'center',gap:8,textTransform:'uppercase',letterSpacing:.5,opacity:pLoading?.7:1}}>{pLoading?'GERANDO COMPROVANTE...':'✅  MARCAR COMO PAGO + EMITIR COMPROVANTE'}</button>}
+    {order.status==='pago'&&<button onClick={()=>shareOrDownload(order,true)} style={{width:'100%',padding:12,borderRadius:12,border:`2px solid #16a34a`,background:'#dcfce7',color:'#166534',fontWeight:700,fontSize:14,cursor:'pointer',marginBottom:12,textTransform:'uppercase',letterSpacing:.4}}>🧾 EMITIR COMPROVANTE DE PAGAMENTO</button>}
 
     <Card><Ttl>ATUALIZAR STATUS DO PAGAMENTO</Ttl>
-      <div style={{display:'flex',gap:8}}>
-        {Object.entries(ST).map(([k,v])=><button key={k} onClick={()=>onStatus(order.id,k)} style={{flex:1,padding:'10px 4px',borderRadius:10,border:`2px solid ${order.status===k?v.d:'#e5e7eb'}`,background:order.status===k?v.bg:'#fff',color:order.status===k?v.fg:'#9ca3af',fontWeight:order.status===k?700:400,cursor:'pointer',fontSize:11,letterSpacing:.2}}>{v.l}</button>)}
-      </div>
+      <div style={{display:'flex',gap:8}}>{Object.entries(ST).map(([k,v])=><button key={k} onClick={()=>onStatus(order.id,k)} style={{flex:1,padding:'10px 4px',borderRadius:10,border:`2px solid ${order.status===k?v.d:'#e5e7eb'}`,background:order.status===k?v.bg:'#fff',color:order.status===k?v.fg:'#9ca3af',fontWeight:order.status===k?700:400,cursor:'pointer',fontSize:11,letterSpacing:.2}}>{v.l}</button>)}</div>
     </Card>
 
     {c&&<Sec title="Dados do Cliente">
-      <DR label="NOME / RAZÃO SOCIAL" value={c.name} bold/>
-      {c.apelido&&<DR label="APELIDO / FANTASIA" value={c.apelido}/>}
-      {c.cidade&&<DR label="CIDADE / UF" value={`${c.cidade}${c.estado?' - '+c.estado:''}`}/>}
-      {c.document&&<DR label={c.documentType?.toUpperCase()} value={c.document}/>}
-      {c.inscricaoEstadual&&<DR label="INSCRIÇÃO ESTADUAL" value={c.inscricaoEstadual}/>}
-      {c.phone&&<DR label="TELEFONE" value={c.phone}/>}
-      {c.email&&<DR label="EMAIL" value={c.email}/>}
-      {c.address&&<DR label="ENDEREÇO" value={`${c.address}${c.cep?' · CEP '+c.cep:''}`}/>}
+      <DR label="NOME / RAZÃO SOCIAL" value={c.name} bold/>{c.apelido&&<DR label="APELIDO / FANTASIA" value={c.apelido}/>}{c.cidade&&<DR label="CIDADE / UF" value={`${c.cidade}${c.estado?' - '+c.estado:''}`}/>}{c.document&&<DR label={c.documentType?.toUpperCase()} value={c.document}/>}{c.inscricaoEstadual&&<DR label="INSCRIÇÃO ESTADUAL" value={c.inscricaoEstadual}/>}{c.phone&&<DR label="TELEFONE" value={c.phone}/>}{c.email&&<DR label="EMAIL" value={c.email}/>}{c.address&&<DR label="ENDEREÇO" value={`${c.address}${c.cep?' · CEP '+c.cep:''}`}/>}
     </Sec>}
 
     <Sec title="Condições Comerciais">
-      <DR label="FORMA DE PAGAMENTO" value={order.formaPagamento}/><DR label="PRAZO" value={order.prazo}/>
-      {order.transportadora&&<DR label="TRANSPORTADORA" value={order.transportadora}/>}
-      {order.representante&&<DR label="REPRESENTANTE" value={order.representante}/>}
-      {order.rotaRegiao&&<DR label="ROTA / REGIÃO" value={order.rotaRegiao}/>}
-      <DR label="FRETE POR CONTA" value={order.fretePorConta}/>
+      <DR label="FORMA DE PAGAMENTO" value={order.formaPagamento}/><DR label="PRAZO" value={order.prazo}/>{order.transportadora&&<DR label="TRANSPORTADORA" value={order.transportadora}/>}{order.representante&&<DR label="REPRESENTANTE" value={order.representante}/>}{order.rotaRegiao&&<DR label="ROTA / REGIÃO" value={order.rotaRegiao}/>}<DR label="FRETE POR CONTA" value={order.fretePorConta}/>
     </Sec>
 
     <Sec title="Itens do Pedido">
       {(order.items||[]).map((it,i)=>{const{total}=calcItem(it);return(
         <div key={it.id||i} style={{border:'1px solid #e5e7eb',borderRadius:10,padding:10,marginBottom:8,background:'#fafafa'}}>
           <div style={{fontWeight:700,fontSize:13,color:NAVY,marginBottom:4}}>{i+1}. {it.produto}</div>
-          <div style={{fontSize:11,color:'#6b7280',display:'flex',flexWrap:'wrap',gap:10,marginBottom:4}}>
-            {it.lote&&<span>LOTE: {it.lote}</span>}{it.dataValidade&&<span>VALIDADE: {it.dataValidade}</span>}
-          </div>
+          <div style={{fontSize:11,color:'#6b7280',display:'flex',flexWrap:'wrap',gap:10,marginBottom:4}}>{it.lote&&<span>LOTE: {it.lote}</span>}{it.dataValidade&&<span>VALIDADE: {it.dataValidade}</span>}</div>
           {it.observacoes&&<div style={{fontSize:11,color:'#9ca3af',marginBottom:4}}>OBS: {it.observacoes}</div>}
-          <div style={{display:'flex',justifyContent:'space-between',fontSize:13}}>
-            <span style={{color:'#6b7280'}}>{it.qtd} {it.un} × {money(it.vlUnit)}{it.descPercent>0?` (−${it.descPercent}%)`:''}</span>
-            <span style={{fontWeight:700,color:NAVY}}>{money(total)}</span>
-          </div>
+          <div style={{display:'flex',justifyContent:'space-between',fontSize:13}}><span style={{color:'#6b7280'}}>{it.qtd} {it.un} × {money(it.vlUnit)}{it.descPercent>0?` (−${it.descPercent}%)`:''}</span><span style={{fontWeight:700,color:NAVY}}>{money(total)}</span></div>
         </div>
       );})}
       <div style={{borderTop:'1px solid #e5e7eb',paddingTop:8,marginTop:4}}>
-        <DR label="SUBTOTAL" value={money(T.subtotal)}/>
-        {T.totalDesc>0&&<DR label="DESCONTO TOTAL" value={`−${money(T.totalDesc)}`} color="#dc2626"/>}
-        {T.frete>0&&<DR label="FRETE" value={money(T.frete)}/>}
-        <DR label="VALOR TOTAL DA NOTA" value={money(T.total)} bold color={NAVY}/>
+        <DR label="SUBTOTAL" value={money(T.subtotal)}/>{T.totalDesc>0&&<DR label="DESCONTO TOTAL" value={`−${money(T.totalDesc)}`} color="#dc2626"/>}{T.frete>0&&<DR label="FRETE" value={money(T.frete)}/>}<DR label="VALOR TOTAL DA NOTA" value={money(T.total)} bold color={NAVY}/>
       </div>
     </Sec>
 
     {order.notes&&<Sec title="Observações / Informações Adicionais"><p style={{fontSize:13,color:'#374151',margin:0,textTransform:'uppercase'}}>{order.notes}</p></Sec>}
-
-    {order.signature&&<Card><Ttl>ASSINATURA / CARIMBO DO CLIENTE</Ttl>
-      <img src={order.signature} alt="Assinatura" style={{width:'100%',maxWidth:280,border:'1px solid #e5e7eb',borderRadius:8,display:'block'}}/>
-      <p style={{fontSize:11,color:'#9ca3af',marginTop:6,marginBottom:0,textTransform:'uppercase'}}>{c?.name} — ENTREGA: {fdate(order.dataEntrega)}</p>
-    </Card>}
+    {order.signature&&<Card><Ttl>ASSINATURA / CARIMBO DO CLIENTE</Ttl><img src={order.signature} alt="Assinatura" style={{width:'100%',maxWidth:280,border:'1px solid #e5e7eb',borderRadius:8,display:'block'}}/><p style={{fontSize:11,color:'#9ca3af',marginTop:6,marginBottom:0,textTransform:'uppercase'}}>{c?.name} — ENTREGA: {fdate(order.dataEntrega)}</p></Card>}
 
     <Card><Ttl>COMPARTILHAR NOTA</Ttl>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
@@ -869,9 +677,7 @@ table.it{width:100%;border-collapse:collapse;font-size:10px}table.it th{backgrou
       <button onClick={copy} style={{width:'100%',marginTop:8,padding:11,borderRadius:12,background:'#f9fafb',color:'#374151',border:'1.5px solid #e5e7eb',fontWeight:700,fontSize:12,cursor:'pointer',textTransform:'uppercase'}}>📋 COPIAR TEXTO</button>
     </Card>
 
-    <button onClick={()=>{if(window.confirm('EXCLUIR ESTA NOTA?'))onDelete(order.id);}} style={{width:'100%',padding:12,borderRadius:12,border:'1.5px solid #fecaca',background:'#fef2f2',color:'#dc2626',fontWeight:700,fontSize:13,cursor:'pointer',marginBottom:8,textTransform:'uppercase',letterSpacing:.4}}>
-      🗑️ EXCLUIR NOTA
-    </button>
+    <button onClick={()=>{if(window.confirm('EXCLUIR ESTA NOTA?'))onDelete(order.id);}} style={{width:'100%',padding:12,borderRadius:12,border:'1.5px solid #fecaca',background:'#fef2f2',color:'#dc2626',fontWeight:700,fontSize:13,cursor:'pointer',marginBottom:8,textTransform:'uppercase',letterSpacing:.4}}>🗑️ EXCLUIR NOTA</button>
   </div>);
 }
 
